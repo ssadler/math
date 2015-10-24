@@ -4,74 +4,115 @@ module Math.Terms where
 import Control.Applicative
 import Data.Attoparsec.Text as A
 import Data.List (groupBy, sort)
+import Data.Ord (comparing)
 import Data.Text (Text)
--- import Lens.Micro.Platform
 
+-------------------------------------------------------------------------------
+-- Variable
+-------------------------------------------------------------------------------
 
-data Sign = Positive | Negative
-    deriving (Eq)
-
-data Class = Class String
-    deriving (Eq, Ord, Show)
-
-data Variable = Constant Int | Variable Char Int
+data Variable = Variable { name :: Char, power :: Int }
     deriving (Eq, Ord)
 
-data Term = Term Sign [Variable]
+instance Show Variable where
+    show (Variable x e) = x : if e == 1 then "" else showExp e
 
-data Polynomial = Polynomial [Term]
 
----
+-------------------------------------------------------------------------------
+-- Term (aka Monomial)
+-------------------------------------------------------------------------------
 
+data Term = Term { coefficient :: Int, variables :: [Variable] }
+    deriving (Eq)
+
+
+-- | Showing
+--
 showExp :: Int -> String
 showExp e = let lst = mod e 10
                 hed = quot e 10
                 pre = if hed > 0 then showExp hed else ""
             in pre ++ ("⁰¹²³⁴⁵⁶⁷⁸⁹" !! lst : "")
 
-instance Show Variable where
-    show (Constant n) = show n
-    show (Variable x e) = x : showExp e
 
 instance Show Term where
-    show (Term sign vars) = s ++ concatMap show vars
-        where s = if sign == Negative then "-" else ""
-
-instance Show Polynomial where
-    show (Polynomial mons) = concatMap show mons
-
----
+    show (Term co vars) = sco ++ concatMap show vars
+      where sco = if co /= 1 then show co else ""
 
 
-combineVars :: [Variable] -> [Variable]
-combineVars = map combine . groupBy isSame . sort
+-- | Sorting
+--
+instance Ord Term where
+    compare = comparing maxExp
+      where 
+        maxExp (Term _ vars) = foldr max 1 [power v | v <- vars]
+
+
+-- | Constructing
+--
+term :: Int -> [Variable] -> Term
+term co = Term co . map combine . groupBy isSame . sort
   where
-    combine vars@(Constant _:_)   = Constant $ foldr (*) 1 [n | Constant n <- vars]
-    combine vars@(Variable x _:_) = Variable x $ foldr (+) 0 [e | Variable _ e <- vars]
-    combine []                    = undefined
-    isSame (Constant _) (Constant _)     = True
+    combine vars@(v0:_) = Variable (name v0) $ foldr (+) 0 $ map power vars
+    combine []          = undefined
     isSame (Variable x _) (Variable y _) = x == y
-    isSame _ _                           = False
+
+
+textToTerm :: Text -> Term
+textToTerm = either error id . parseOnly parseTerm
 
 
 parseTerm :: Parser Term
-parseTerm = do
-    sign <- takeSign
-    skipSpace
-    parts <- many1 (constant <|> variable)
-    endOfInput
-    return $ Term sign $ combineVars parts
+parseTerm = term <$> (signed decimal <|> pure 1)
+                 <*> many1 variable
+                  <* endOfInput
   where
-    takeSign = (char '-' >> pure Negative) <|> pure Positive
-    constant = Constant <$> decimal
     variable = Variable <$> satisfy (inClass "a-z")
                         <*> (("^" >> decimal) <|> pure 1)
 
 
-term :: Text -> Term
-term = either error id . parseOnly parseTerm
+data TermClass = TermClass String
+    deriving (Eq, Ord, Show)
 
 
-termClass :: Term -> Class
-termClass (Term _ vars) = Class $ concat [show v | v@(Variable _ _) <- vars]
+termClass :: Term -> TermClass
+termClass (Term _ vars) = TermClass $ concat [show v | v@(Variable _ _) <- vars]
 
+
+termDegree :: Term -> Int
+termDegree (Term co vars) = undefined
+
+
+-------------------------------------------------------------------------------
+-- Polynomial
+---------------------------------------------------------------------------------
+
+data Polynomial = Polynomial [Term]
+
+
+instance Show Polynomial where
+    show (Polynomial terms) = concatMap show terms
+
+
+polynomial :: [Term] -> Polynomial
+polynomial = Polynomial . reverse . sort
+
+
+dividePolynomial :: Polynomial -> Polynomial -> Polynomial
+dividePolynomial (Polynomial num) (Polynomial den) =
+    divide' (reverse $ sort num) (reverse $ sort den)
+
+
+divide' :: [Term] -> [Term] -> [Term]
+divide numerator denominator =
+    let numHighest = head $ groupBy termDegree numerator
+        denHighest = head $ groupBy termDegree demoninator
+        cartProd <- [(x,y) | x <- , y <- ys]
+        
+    
+    
+-- On each iteration
+-- Take term from denominator with higest degree (or one of them)
+-- find a term wtih equal or higher degree to divide
+-- do division, distribute result
+-- subtract from original polynomial, repeat
