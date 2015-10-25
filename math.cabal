@@ -13,10 +13,19 @@ cabal-version:       >=1.10
 
 library
   exposed-modules:     Math
-  other-modules:       Math.LongDivision, Math.Terms
+  other-modules:       Math.Terms
   hs-source-dirs:      src
   build-depends:       base >=4.7 && <4.8,
                        attoparsec >= 0.13,
                        text >= 1.2,
                        microlens >= 0.3.4.0,
                        containers >= 0.5.5.0
+
+Test-Suite Tests
+  type:                exitcode-stdio-1.0
+  main-is:             Tests.hs
+  build-depends:       base,
+                       test-framework >= 0.8.1,
+                       test-framework-hunit >= 0.3,
+                       HUnit,
+                       math
