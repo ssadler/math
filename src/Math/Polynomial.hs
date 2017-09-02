@@ -2,11 +2,13 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 
-module Math.Terms where
+module Math.Polynomial where
+
 
 import Control.Applicative
 import Data.Attoparsec.Text as A
 import Data.Char (ord)
+import Data.Decimal
 import Data.Either (partitionEithers)
 import Data.List (intercalate, sortBy)
 import qualified Data.Map as Map
@@ -15,7 +17,7 @@ import Data.Monoid
 import Data.Ord (comparing)
 import Data.String
 import Data.Text (Text, pack)
-import Debug.Trace
+
 
 -------------------------------------------------------------------------------
 -- Term (aka Monomial)
@@ -23,7 +25,7 @@ import Debug.Trace
 
 type TermVars = Map.Map Char Int
 
-data Term = Term { coefficient :: Int, variables :: TermVars }
+data Term = Term { coefficient :: Decimal, variables :: TermVars }
     deriving (Eq)
 
 
@@ -41,7 +43,7 @@ showExp e = if e == 1 then "" else show e -- map ("⁰¹²³⁴⁵⁶⁷⁸⁹"!
 
 -- | Constructing
 --
-term :: Int -> [(Char, Int)] -> Term
+term :: Decimal -> [(Char, Int)] -> Term
 term co = Term co . Map.fromListWith (+)
 
 
@@ -52,12 +54,13 @@ textToTerm = either error id . parseOnly (parseTerm <* endOfInput)
 parseTerm :: Parser Term
 parseTerm = do
     f <- skipSpace >> sign <* skipSpace
-    (took, co) <- (,) True <$> decimal <|> pure (False, 1)
+    (took, co) <- (,) True <$> coeff <|> pure (False, 1)
     vars <- many' variable <* skipSpace
     let t = term (f co) vars
     if took || vars /= [] then pure t else fail "No term"
   where
     sign = ("-" >> pure negate) <|> ("+" >> pure id) <|> pure id
+    coeff = fromInteger <$> decimal
     variable = (,) <$> satisfy (inClass "a-z") <*> (decimal <|> pure 1)
 
 
@@ -76,7 +79,7 @@ termDivide (Term co1 dee) (Term co2 der) =
     let divideExp e1 e2 = if e1 > e2 then Just (e1 - e2) else Nothing
         vars = Map.differenceWith divideExp dee der
         sumDegree = Map.foldr (+) 0
-        co = if mod co1 co2 == 0 then quot co1 co2 else 0
+        co = co1 / co2
         worked = sumDegree dee - sumDegree der == sumDegree vars && co /= 0
     in if worked then Just (Term co vars) else Nothing
 
@@ -90,6 +93,14 @@ termMultiply (Term co1 vars1) (Term co2 vars2) = Term (co1*co2) vars3
 -- | Get degree of term
 termDegree :: Term -> Int
 termDegree (Term _ vars) = Map.foldr (+) 0 vars
+
+
+-- | Solve a term
+termSolve :: [(Char, Decimal)] -> Term -> Term
+termSolve [] t = t
+termSolve ((k,v):xs) (Term co vars) = termSolve xs $ Term nco nvars
+  where nco = co * maybe 1 (v^) (Map.lookup k vars)
+        nvars = Map.delete k vars
 
 
 -- | Utility type to compare vars
@@ -171,3 +182,7 @@ divide' (P (t:ts)) (P denominator) =
     in case mres of
         Nothing -> Right t : divide' (P ts) (P denominator)
         Just res -> Left res : divide' remainder (P denominator)
+
+
+solve :: Char -> Decimal -> Polynomial -> Polynomial
+solve x y (P terms) = reduce $ P $ map (termSolve [(x,y)]) terms

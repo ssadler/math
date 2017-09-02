@@ -8,7 +8,6 @@ import Test.HUnit
 import Math
 
 
--- http://www.mesacc.edu/~scotz47781/mat120/notes/divide_poly/long_division/long_division_practice.html
 testDivide :: Test
 testDivide = TestLabel "Test Divide" $ TestList [
     check "1" ("-1x3 -2x", "y3 -1y") (divide "-x4 +y3 -2x2 -y" "x"),
@@ -20,15 +19,16 @@ testDivide = TestLabel "Test Divide" $ TestList [
     ]
   where check s a b = TestLabel s $ TestCase $ assertEqual "" a b
 
+-- http://www.mesacc.edu/~scotz47781/mat120/notes/divide_poly/long_division/long_division_practice.html
+-- http://math.stackexchange.com/questions/1496716/avoiding-infinite-loop-in-multi-variable-polynomial-division#comment3049027_1496725
+
 
 testMul :: Assertion
 testMul = assertEqual "1 1"
     ("x2 -x -2" ^* "3") "3x2 -3x -6"
 
 
-tests = hUnitTestToTests $ TestList [testDivide,
-                                     TestCase testMul]
-
 main :: IO ()
-main = defaultMain tests
+main = defaultMain $ hUnitTestToTests tests
+  where tests = TestList [testDivide, TestCase testMul]
 
